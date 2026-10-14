@@ -40,12 +40,21 @@ Execute o build novamente após editar a configuração. Para checkout configura
 ## Imagens e produto
 
 - `assets/runners.webp`: imagem ilustrativa fotorealista gerada por IA, otimizada e servida localmente. Não retrata atletas identificados, patrocínio ou depoimentos. Substitua por fotografia real licenciada se desejar usar pessoas reais.
+- `assets/runners-768.webp` e `assets/runners-480.webp`: versões menores para celulares e capas. Hero e CTA final utilizam `srcset`; o preload escolhe a mesma imagem do hero, evitando baixar duas resoluções desnecessariamente.
 - Capa e páginas são mockups editoriais em HTML/CSS. Os previews estão identificados como ilustrativos e não reproduzem um PDF que não foi fornecido. Para previews fiéis ao produto, substitua pelas páginas e capa oficiais, preservando essa informação até a substituição.
 - `assets/og-cover.png`: arte social 1200 × 630, servida localmente.
 - Fontes Barlow Condensed e Inter são locais em WOFF2, com licenças OFL incluídas em `assets/fonts/`.
 
 A disponibilização do PDF, área de membros, acesso vitalício e liberação após pagamento devem ser configuradas no produto da Cakto. A página apresenta as condições fornecidas pelo proprietário, mas não implementa a entrega.
 
-## Estrutura
+## Interações e desempenho
+
+Os CTAs têm brilho breve ao entrar na tela, resposta ao toque e movimento da seta no hover. Seções selecionadas recebem uma entrada única; nenhum conteúdo fica oculto aguardando JavaScript. Todos os efeitos respeitam `prefers-reduced-motion`. Não há animações contínuas ou atraso artificial no redirecionamento para compra. A conexão com o checkout é antecipada apenas ao passar o ponteiro, tocar ou focar um botão configurado.
+
+O CTA fixo mobile aparece após o botão principal sair da tela e se oculta quando outro botão de compra fica visível, quando o diálogo está aberto ou quando o consentimento precisa ser respondido. Sua entrada usa translação sem reduzir o contraste dos textos, e o fundo sólido evita o custo de blur durante a rolagem.
+
+O teste em navegador cobre 12 larguras entre 320 e 1440 px, orientação paisagem, movimento reduzido, FAQ, CTAs e auditoria Axe. Em uma simulação mobile local do Lighthouse, o desempenho passou de 97 para 99, o LCP de 2,6 para 2,1 s e o volume carregado de 245 para 195 KiB. São medidas de laboratório desta execução; desempenho real na Vercel depende da rede e do dispositivo.
+
+## Arquivos
 
 `index.html`: conteúdo completo e SEO. `styles.css`: design responsivo. `app.js`: checkout, consentimento, tracking e CTA mobile. `config.js`: ajustes comerciais. `scripts/`: build e servidor local. `tests/`: validação de assets, conteúdo e comportamento em navegador.

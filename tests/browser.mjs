@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync } from 'node:fs';
-import { CHECKOUT_CAKTO_URL } from '../config.js';
+import { CHECKOUT_CAKTO_URL } from '../dist/config.js';
 const port = 3107;
 const server = spawn(process.execPath, ['scripts/serve.mjs', 'dist'], { env: { ...process.env, PORT: String(port) }, stdio: ['ignore', 'pipe', 'inherit'] });
 let browser;
@@ -17,7 +17,7 @@ try {
   const errors = [], failures = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('response', response => { if (response.status() >= 400) failures.push(response.url()); });
-  for (const width of [320, 375, 390, 768, 1024, 1440]) {
+  for (const width of [320, 360, 375, 390, 414, 540, 760, 761, 768, 820, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`http://127.0.0.1:${port}`);
     await page.evaluate(() => document.fonts.ready);
@@ -37,15 +37,38 @@ try {
   } else {
     for (const link of await page.locator('[data-buy]').all()) assert.equal(await link.getAttribute('href'), CHECKOUT_CAKTO_URL);
   }
-  await page.locator('#estrategia').scrollIntoViewIfNeeded();
+  // CTA fixo já aparece durante o mockup, após o botão hero sair da tela.
+  await page.evaluate(() => {
+    const button = document.querySelector('[data-location="hero"]');
+    window.scrollTo({ top: button.getBoundingClientRect().bottom + scrollY + 8, behavior: 'instant' });
+  });
   await page.waitForFunction(() => !document.querySelector('#mobile-cta').hidden);
-  await page.locator('#oferta').scrollIntoViewIfNeeded();
+  assert.ok(await page.evaluate(() => document.querySelector('.hero').getBoundingClientRect().bottom > 0));
+  if (!CHECKOUT_CAKTO_URL) {
+    await page.locator('[data-location="mobile"]').click();
+    assert.equal(await page.locator('dialog').isVisible(), true);
+    assert.equal(await page.locator('#mobile-cta').isVisible(), false);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('#mobile-cta').hidden);
+  }
+  await page.locator('[data-location="offer"]').scrollIntoViewIfNeeded();
+  await page.waitForFunction(() => document.querySelector('#mobile-cta').hidden);
+  await page.locator('[data-location="final"]').scrollIntoViewIfNeeded();
   await page.waitForFunction(() => document.querySelector('#mobile-cta').hidden);
   for (const details of await page.locator('details').all()) {
     await details.locator('summary').click(); assert.equal(await details.getAttribute('open'), '');
     await details.locator('summary').click(); assert.equal(await details.getAttribute('open'), null);
   }
   console.log('✓ Compra, CTA fixo e sete respostas do FAQ');
+  const reduced = await browser.newContext({ reducedMotion: 'reduce', viewport: { width: 390, height: 844 } });
+  const reducedPage = await reduced.newPage(); await reducedPage.goto(`http://127.0.0.1:${port}`);
+  assert.equal(await reducedPage.locator('[data-location="hero"]').evaluate(element => getComputedStyle(element, '::before').display), 'none');
+  assert.equal(await reducedPage.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior), 'auto');
+  await reduced.close();
+  await page.setViewportSize({ width: 844, height: 390 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 844);
+  console.log('✓ Movimento reduzido e orientação paisagem');
+  await page.setViewportSize({ width: 390, height: 844 });
   const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   assert.deepEqual(audit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) })), []);
   console.log('✓ Axe WCAG 2.1 A/AA: nenhuma violação detectada');

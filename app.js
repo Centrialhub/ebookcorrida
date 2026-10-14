@@ -5,11 +5,23 @@ function validHttps(value) {
   catch { return false; }
 }
 const dialog = document.querySelector('#checkout-dialog');
+let dialogTrigger;
 const checkoutReady = validHttps(CHECKOUT_CAKTO_URL);
+// Aquece a conexão apenas ao demonstrar intenção de compra; não atrasa o clique.
+let checkoutWarmed = false;
+function warmCheckout() {
+  if (!checkoutReady || checkoutWarmed) return;
+  checkoutWarmed = true;
+  const hint = document.createElement('link'); hint.rel = 'preconnect';
+  hint.href = new URL(CHECKOUT_CAKTO_URL).origin; document.head.append(hint);
+}
 for (const link of document.querySelectorAll('[data-buy]')) {
   link.href = checkoutReady ? CHECKOUT_CAKTO_URL : '#oferta';
+  link.addEventListener('pointerenter', warmCheckout, { once: true, passive: true });
+  link.addEventListener('touchstart', warmCheckout, { once: true, passive: true });
+  link.addEventListener('focus', warmCheckout, { once: true });
   link.addEventListener('click', (event) => {
-    if (!checkoutReady) { event.preventDefault(); dialog.showModal(); return; }
+    if (!checkoutReady) { event.preventDefault(); dialogTrigger = link; dialog.showModal(); updateBar(); return; }
     if (consent === 'granted') {
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push({ event: 'checkout_click', product_name: 'Corra Até o Fim', value: 29.90, currency: 'BRL', cta_location: link.dataset.location });
@@ -26,19 +38,33 @@ dialog.addEventListener('click', event => {
 });
 document.querySelector('#year').textContent = new Date().getFullYear();
 const mobileBar = document.querySelector('#mobile-cta');
-const hero = document.querySelector('.hero');
-const offer = document.querySelector('#oferta');
-let heroVisible = true, offerVisible = false, frame;
-function updateBar() { mobileBar.hidden = heroVisible || offerVisible || consentBannerVisible(); }
+const heroButton = document.querySelector('[data-location="hero"]');
+const offer = document.querySelector('[data-location="offer"]');
+const finalButton = document.querySelector('[data-location="final"]');
+let heroPassed = false, offerVisible = false, finalVisible = false, frame;
+function updateBar() { mobileBar.hidden = !heroPassed || offerVisible || finalVisible || consentBannerVisible() || dialog.open; }
+dialog.addEventListener('close', () => { updateBar(); dialogTrigger?.focus({ preventScroll: true }); });
 if ('IntersectionObserver' in window) {
-  const heroObserver = new IntersectionObserver(([entry]) => { heroVisible = entry.isIntersecting; updateBar(); });
+  const heroObserver = new IntersectionObserver(([entry]) => { heroPassed = !entry.isIntersecting && entry.boundingClientRect.bottom <= 0; updateBar(); });
   const offerObserver = new IntersectionObserver(([entry]) => { offerVisible = entry.isIntersecting; updateBar(); }, { threshold: 0.1 });
-  heroObserver.observe(hero); offerObserver.observe(offer);
+  const finalObserver = new IntersectionObserver(([entry]) => { finalVisible = entry.isIntersecting; updateBar(); });
+  heroObserver.observe(heroButton); offerObserver.observe(offer); finalObserver.observe(finalButton);
 } else {
   window.addEventListener('scroll', () => {
     if (frame) return;
-    frame = requestAnimationFrame(() => { heroVisible = hero.getBoundingClientRect().bottom > 0; const r = offer.getBoundingClientRect(); offerVisible = r.top < innerHeight && r.bottom > 0; updateBar(); frame = null; });
+    frame = requestAnimationFrame(() => { heroPassed = heroButton.getBoundingClientRect().bottom <= 0; const r = offer.getBoundingClientRect(); offerVisible = r.top < innerHeight && r.bottom > 0; const f = finalButton.getBoundingClientRect(); finalVisible = f.top < innerHeight && f.bottom > 0; updateBar(); frame = null; });
   }, { passive: true });
+}
+
+// Animações de entrada únicas. Conteúdo permanece visível sem JS e sem observador.
+if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  const motionObserver = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      entry.target.classList.add('motion-entered'); motionObserver.unobserve(entry.target);
+    }
+  }, { threshold: 0.15 });
+  document.querySelectorAll('[data-buy], .section-heading, .center-heading, .product-art, .rpe-panel, .audience-grid, .distance-grid').forEach(element => motionObserver.observe(element));
 }
 
 // Tracking é opcional. Nenhum script ou cookie externo é usado antes do aceite.
